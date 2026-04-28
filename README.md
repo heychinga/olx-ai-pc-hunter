@@ -13,3 +13,5 @@ An n8n bot for parsing OLX using JS Regex and the Llama 3.1 neural network via G
 
 # How it works
 The system loops through 52 ads, opens each one, extracts the description, and sends data to Groq. The AI ​​evaluates the hardware (weeding out old CPUs and GPUs used for mining) and sends us only the best ones
+
+![Workflow](actionVisualisation.png)
