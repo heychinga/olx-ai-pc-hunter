@@ -1,0 +1,545 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "https://api.webscraping.ai/html",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "api_key",
+              "value": "c67ad7d5-6e7a-425a-9d1e-af00c666ec12"
+            },
+            {
+              "name": "url",
+              "value": "https://www.olx.kz/alma-ata/q-%D0%BA%D0%BE%D0%BC%D0%BF%D1%8C%D1%8E%D1%82%D0%B5%D1%80/"
+            },
+            {
+              "name": "proxy",
+              "value": "residential"
+            },
+            {
+              "name": "js",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -1136,
+        224
+      ],
+      "id": "bd5c109a-9609-4606-84e6-3de4b0c4de16",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "title",
+              "cssSelector": "h4",
+              "returnArray": true
+            },
+            {
+              "key": "price",
+              "cssSelector": "[data-testid=\"ad-price\"]",
+              "returnArray": true
+            },
+            {
+              "key": "link",
+              "cssSelector": "div[data-cy=\"l-card\"] a[href]",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            },
+            {
+              "key": "description",
+              "cssSelector": "div.css-1t59397",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -928,
+        224
+      ],
+      "id": "ea0b197c-e2a9-4639-a107-25fb48942241",
+      "name": "HTML"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Проанализируй это объявление с OLX:\nНазвание: {{ $json.title }}\nЦена: {{ $json.price }}\nОписание:\" {{ $json.description }} \"\n\nТвои критерии оценки:\n1. Поколение железа: Если написано \"i7\", проверь индекс (например, i7-2600 — это мусор, i7-12700 — топ)\n2. Баланс: Соответствует ли видеокарта процессору? Нет ли обмана (например, \"Игровой\" ПК на встроенной графике)\n3. Рыночная цена: В среднем системник с i7-8700 и GTX 1060 (как в примере) должен стоить около 120-150к тенге. Если просят 220к — это \"Дорого\"\n4. Скрытые проблемы: Ищи в описании слова \"греется\", \"артефакты\", \"без проверок\", \"не работает один слот\". За это резко снижай балл\n\nОтветь строго в формате JSON:\n{\"deal\": true, \"reason\": \"краткое пояснение почему\"} \nили \n{\"deal\": false, \"reason\": \"обычная цена\"}",
+        "options": {
+          "systemMessage": "«Ты — аналитик рынка б/у компьютеров в Казахстане. Твоя цель — оценивать выгодность покупки системных блоков.\nТвои правила:\nСравнивай цену с поколением процессора (например, i7-4770 — старый, i3-12100 — новый и мощнее).\nИщи в описании признаки обмана: \"цена за корпус\", \"монитор отдельно\", \"не работает\".\nОценивай выгоду: если цена на 15-20% ниже средней по рынку для этих характеристик — это 9-10 баллов из 10\nФормат ответа: Всегда отвечай только чистым JSON без лишнего текста, чтобы я мог его распарсить»\n\nБудь крайне подозрителен к видеокартам серии CMP (это майнерские карты без видеовыходов) и процессорам с индексами вроде QTJ0, QL3X (это инженерные мутанты). Если видишь их в описании — снижай оценку выгоды до 3-4 баллов, так как это рискованное железо для новичка\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        224,
+        224
+      ],
+      "id": "10aa99c3-4741-4ef8-a61d-f9219c693938",
+      "name": "AI Agent",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.1-8b-instant",
+        "options": {
+          "maxTokensToSample": 4096,
+          "temperature": 0.7
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        224,
+        320
+      ],
+      "id": "3d2b198e-cd6d-4338-a30b-635ca6f190fa",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "KI6lZcTJoK7wVi2h",
+          "name": "Groq account 2"
+        }
+      },
+      "notes": "28.05.26 expires"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "=🚀 Найдено выгодное объявление!\n\n💻 Товар: {{ $('Loop Over Items1').item.json.title }}\n💰 Цена: {{ $('Loop Over Items1').item.json.price }}\n🤖 Вердикт ИИ: {{ $json.deal ? \"🔥 ВЫГОДНО\" : \"❌ ОБЫЧНАЯ ЦЕНА\" }}\n📝 Почему: {{ $json.reason }}\n\n🔗 Ссылка: {{ $('Loop Over Items1').item.json.link }}\n",
+        "replyMarkup": "inlineKeyboard",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1152,
+        192
+      ],
+      "id": "80b876b4-b60a-436b-8b6c-b76168fe2020",
+      "name": "Send a text message",
+      "webhookId": "02fddb7a-623a-4d42-b104-fee995294a43",
+      "credentials": {
+        "telegramApi": {
+          "id": "trqckcU8tAQh7x9L",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst rawOutput = input.output || input.text || JSON.stringify(input);\n\nlet parsed;\ntry {\n  // Extract JSON from the AI response string\n  const match = rawOutput.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(match[0]);\n} catch(e) {\n  parsed = { deal: false, reason: \"Ошибка парсинга\" };\n}\n\nreturn [{\n  json: {\n    title: input.title,\n    price: input.price,\n    link: input.link,\n    deal: parsed.deal,\n    reason: parsed.reason\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        224
+      ],
+      "id": "b66a008e-6613-4951-9b56-3939ac460f0c",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ebe97cb0-d949-4dcd-bb9e-cef0f5a78a1f",
+              "leftValue": "={{ $json.deal }}",
+              "rightValue": "={{ $json.deal }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        784,
+        208
+      ],
+      "id": "e55f5784-437a-4bdd-94aa-5a0b2b5c7abf",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1536,
+        224
+      ],
+      "id": "787ebfca-4914-4ddf-b4d8-a19d04bf3ed3",
+      "name": "Telegram Trigger",
+      "webhookId": "53af9452-cfe2-46a8-b0b9-cb2cba804118",
+      "credentials": {
+        "telegramApi": {
+          "id": "trqckcU8tAQh7x9L",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "🔍 Принял! Начинаю поиск выгодных компьютеров на OLX. Это займет около 3-5 минут, так как я детально проверяю каждое объявление...",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1328,
+        224
+      ],
+      "id": "fd3fbac7-b60b-4e28-a553-51187d54a973",
+      "name": "Send a text message1",
+      "webhookId": "f40bb1f0-79be-4b54-a6f4-b46374aacc4f",
+      "credentials": {
+        "telegramApi": {
+          "id": "trqckcU8tAQh7x9L",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "✅ Проверка завершена! Я проанализировал все свежие объявления. Если я ничего не прислал выше - значит, сегодня на рынке \"жира\" нет.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "e6d57a2f-9bd6-45c1-85d1-558f3dd60a91",
+      "name": "Send a text message2",
+      "webhookId": "2bfd7390-0aaa-4a38-a2f9-c5c88d245853",
+      "executeOnce": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "trqckcU8tAQh7x9L",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        576
+      ],
+      "id": "7cf117e6-dfc5-4d38-99d5-9fbb133c1ecd",
+      "name": "Wait",
+      "webhookId": "459c6f0f-d772-49b2-91f4-af94811539b7"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        560,
+        544
+      ],
+      "id": "6275d231-dd40-47c0-a247-0e8f2301e199",
+      "name": "Wait1",
+      "webhookId": "26c7cec3-e27c-42ed-a25b-ff5c1d7beba5"
+    },
+    {
+      "parameters": {
+        "jsCode": "const titles = $input.first().json.title;\nconst prices = $input.first().json.price;\nconst links = $input.first().json.link.filter((_, index) => index % 2 === 0);\n\n// Просто готовим список из 52 позиций\nreturn titles.slice(1, 9).map((title, i) => ({\n  json: {\n    title: title,\n    price: prices[i],\n    link: links[i] ? 'https://www.olx.kz' + links[i] : null\n  }\n}));\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -768,
+        224
+      ],
+      "id": "da333de3-9450-45a9-9269-3d8cd027e4a2",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -560,
+        224
+      ],
+      "id": "e605f1c9-0282-46d4-80f4-5a9d702b6879",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Берем HTML из предыдущего узла (Get_details)\nconst html = $input.first().json.data || \"\"; \n\n// 2. Ищем описание через регулярку\nconst regex = /\"description\":\"(.*?)\"/;\nconst match = html.match(regex);\n\nlet description = \"Описание не найдено\";\nif (match && match[1]) {\n    description = match[1]\n        .replace(/\\\\n/g, ' ')\n        .replace(/\\\\r/g, '')\n        .replace(/\\\\\"/g, '\"');\n}\n\n// 3. Собираем объект. \n// ВАЖНО: Проверьте имя узла в кавычках ниже! \n// Если ваш узел называется \"Loop Over Items1\", добавьте единицу.\nconst itemData = $node[\"Loop Over Items1\"].json; \n\nreturn {\n  title: itemData.title,\n  price: itemData.price,\n  link: itemData.link,\n  description: description\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        256
+      ],
+      "id": "05c4c96c-4594-4066-a467-c29f9ad255a1",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.link }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Accept-language",
+              "value": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7"
+            },
+            {
+              "name": "referer",
+              "value": "https://olx.kz"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -256,
+        256
+      ],
+      "id": "778a1c64-f904-41bc-b61b-dad2741f61aa",
+      "name": "Get_details"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get_details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_details": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "bcb3a92e-7ba5-42e9-8420-a5e7a3b782eb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fde5dfe6e2cf75bd357b55072b0df4499cbee49a20d249c1ef0444112a58e37d"
+  },
+  "id": "nn6k3n3JiHRooqQu",
+  "tags": []
+}
